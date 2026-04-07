@@ -1,0 +1,6 @@
+<table>
+  <tr><th>DataCadastro</th><th>dataVagoDesde</th><th>Situacao</th><th>DataAlugado</th></tr>
+  <tr><td>2026-03-02</td><td>2026-03-01</td><td>Alugado</td><td>2026-03-18</td></tr>
+  <tr><td>2026-03-12</td><td>2026-03-05</td><td>Vago</td><td></td></tr>
+  <tr><td>2026-02-10</td><td></td><td>Alugado</td><td>2026-02-15</td></tr>
+</table>

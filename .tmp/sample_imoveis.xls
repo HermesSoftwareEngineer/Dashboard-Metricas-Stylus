@@ -1,0 +1,5 @@
+<table>
+  <tr><th>Codigo</th><th>Nome</th><th>Ativo</th></tr>
+  <tr><td>1</td><td>Imovel A</td><td>Sim</td></tr>
+  <tr><td>2</td><td>Imovel B</td><td>Nao</td></tr>
+</table>

@@ -1,0 +1,6 @@
+<table>
+  <tr><th>DataInicio</th><th>DataRescisao</th><th>Situacao</th><th>Valor</th><th>MotivoRescisao</th></tr>
+  <tr><td>2026-01-10</td><td>2026-03-15</td><td>Rescindido</td><td>1200,00</td><td>Inadimplencia</td></tr>
+  <tr><td>2026-02-01</td><td></td><td>Ativo</td><td>900,00</td><td></td></tr>
+  <tr><td>2026-01-20</td><td>2026-03-20</td><td>Rescindido</td><td>1500,00</td><td>Mudanca de cidade</td></tr>
+</table>

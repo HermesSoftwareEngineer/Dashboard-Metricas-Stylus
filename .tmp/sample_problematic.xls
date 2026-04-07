@@ -1,0 +1,5 @@
+<table>
+  <tr><th>Data</th><th>Valor</th><th>Obs</th></tr>
+  <tr><td>2026-04-01</td><td>1000.50</td><td>ok</td></tr>
+  <tr><td></td><td>NaN</td><td></td></tr>
+</table>

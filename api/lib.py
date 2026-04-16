@@ -658,9 +658,9 @@ def build_locacao_imoview_metrics(start: pd.Timestamp, end: pd.Timestamp) -> dic
                 if start_day <= ts.date() <= end_day
             )
 
-            if len(interacoes_no_periodo) >= 2:
+            if len(interacoes_no_periodo) >= 4:
                 imoview_atendimentos_intervalo_validos += 1
-                for index in range(1, len(interacoes_no_periodo)):
+                for index in range(3, len(interacoes_no_periodo)):
                     delta_intervalo_dias = float((interacoes_no_periodo[index] - interacoes_no_periodo[index - 1]).days)
                     if delta_intervalo_dias < 0:
                         continue

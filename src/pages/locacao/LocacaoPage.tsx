@@ -219,7 +219,7 @@ const locacaoMetrics: LocacaoMetric[] = [
     pagina: 'Setor de Locacao',
     fonte: 'API do Imoview',
     metodologia:
-      'Para cada atendimento, ordenar cronologicamente as interacoes, calcular os intervalos entre cada par consecutivo, consolidar todos os intervalos gerados e retornar a media geral desses tempos como indicador de frequencia de contato.',
+      'Para cada atendimento com pelo menos quatro interacoes, ordenar cronologicamente as interacoes, desconsiderar os dois primeiros intervalos automaticos do sistema e calcular os intervalos consecutivos a partir da terceira interacao, consolidando todos os intervalos gerados e retornando a media geral desses tempos como indicador de frequencia de contato.',
   },
 ]
 
@@ -251,50 +251,259 @@ function formatNumber(value: number | null): string {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value)
 }
 
-function HorizontalBarChart({
+type CompactKpi = {
+  id: string
+  label: string
+  value: string
+  supporting?: string
+}
+
+function CompactKpiCard({ item }: { item: CompactKpi }) {
+  return (
+    <Card
+      variant="bordered"
+      padding="sm"
+      className="relative overflow-hidden border-[var(--color-surface-border)] bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(245,245,248,0.88))] dark:bg-[linear-gradient(145deg,rgba(39,40,50,0.96),rgba(28,29,36,0.9))]"
+    >
+      <div className="pointer-events-none absolute -right-5 -top-5 h-16 w-16 rounded-full bg-brand-red/10 dark:bg-brand-red/20" />
+      <Typography variant="caption" color="muted" className="block truncate">
+        {item.id} • {item.label}
+      </Typography>
+      <Typography variant="h3" className="mt-1 leading-none">
+        {item.value}
+      </Typography>
+      {item.supporting && (
+        <Typography variant="caption" color="secondary" className="mt-1 block truncate">
+          {item.supporting}
+        </Typography>
+      )}
+    </Card>
+  )
+}
+
+function DonutBreakdownChart({
   title,
+  subtitle,
   items,
-  valueKey,
 }: {
   title: string
-  items: Array<{ label: string; value: number; subtitle?: string }>
-  valueKey: 'percent' | 'number'
+  subtitle: string
+  items: Array<{ label: string; value: number; auxiliary?: string }>
 }) {
-  const max = useMemo(() => {
-    if (!items.length) return 1
-    return Math.max(...items.map(item => item.value), 1)
-  }, [items])
+  const chartItems = items.filter(item => item.value > 0)
+  const total = chartItems.reduce((sum, item) => sum + item.value, 0)
+  const radius = 66
+  const circumference = 2 * Math.PI * radius
+  const colors = ['#C61A26', '#FF9F1C', '#4F734A', '#3B82F6', '#8B5CF6', '#0F766E']
+  let accumulated = 0
 
   return (
-    <Card variant="bordered" className="space-y-3">
-      <Typography variant="h4">{title}</Typography>
+    <Card variant="bordered" className="space-y-4">
+      <div>
+        <Typography variant="h4">{title}</Typography>
+        <Typography variant="caption" color="secondary" className="mt-1 block">
+          {subtitle}
+        </Typography>
+      </div>
 
-      {!items.length ? (
-        <Typography variant="body" color="muted">Sem dados no periodo.</Typography>
+      {!chartItems.length ? (
+        <Typography variant="body" color="muted">
+          Sem dados no periodo.
+        </Typography>
       ) : (
-        <div className="space-y-2">
-          {items.map(item => {
-            const width = `${Math.max((item.value / max) * 100, 2)}%`
-            return (
-              <div key={item.label} className="space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <Typography variant="caption" className="truncate max-w-[68%]">{item.label}</Typography>
-                  <Typography variant="caption" color="secondary">
-                    {valueKey === 'percent' ? `${item.value.toFixed(2)}%` : formatNumber(item.value)}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[200px_1fr] sm:items-center">
+          <div className="relative mx-auto h-[180px] w-[180px]">
+            <svg viewBox="0 0 180 180" className="h-full w-full -rotate-90">
+              <circle cx="90" cy="90" r={radius} fill="none" stroke="var(--color-surface-border)" strokeWidth="18" />
+              {chartItems.map((item, index) => {
+                const segment = total > 0 ? (item.value / total) * circumference : 0
+                const dashArray = `${segment} ${Math.max(circumference - segment, 0)}`
+                const dashOffset = -accumulated
+                accumulated += segment
+
+                return (
+                  <circle
+                    key={`${item.label}-${index}`}
+                    cx="90"
+                    cy="90"
+                    r={radius}
+                    fill="none"
+                    stroke={colors[index % colors.length]}
+                    strokeWidth="18"
+                    strokeDasharray={dashArray}
+                    strokeDashoffset={dashOffset}
+                    strokeLinecap="butt"
+                  />
+                )
+              })}
+            </svg>
+
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <Typography variant="caption" color="muted">
+                Total
+              </Typography>
+              <Typography variant="h2" className="leading-none">
+                {formatNumber(total)}
+              </Typography>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {chartItems.map((item, index) => {
+              const percent = total > 0 ? (item.value / total) * 100 : 0
+              return (
+                <div key={`${item.label}-${index}`} className="rounded-[var(--radius-md)] border border-[var(--color-surface-border)] bg-[var(--color-surface-card)]/70 p-2.5 dark:bg-[var(--color-surface-muted)]/40">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="inline-block size-2.5 rounded-full"
+                        style={{ backgroundColor: colors[index % colors.length] }}
+                      />
+                      <Typography variant="caption" className="truncate max-w-[180px]">
+                        {item.label}
+                      </Typography>
+                    </div>
+                    <Typography variant="caption" color="secondary">
+                      {percent.toFixed(1)}%
+                    </Typography>
+                  </div>
+                  <Typography variant="caption" color="secondary" className="mt-1 block">
+                    {formatNumber(item.value)} {item.auxiliary ? `• ${item.auxiliary}` : ''}
                   </Typography>
                 </div>
-                <div className="h-2 w-full rounded-full bg-[var(--color-surface-muted)] overflow-hidden">
-                  <div className="h-full rounded-full bg-brand-red" style={{ width }} />
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function SweepGauge({
+  value,
+  title,
+  display,
+  detail,
+  colors,
+  size = 140,
+}: {
+  value: number
+  title: string
+  display: string
+  detail?: string
+  colors: [string, string]
+  size?: number
+}) {
+  const safeValue = Math.min(Math.max(value, 0), 100)
+  const ringStyle = {
+    background: `conic-gradient(${colors[0]} 0%, ${colors[1]} ${safeValue}%, rgba(128, 128, 128, 0.2) ${safeValue}% 100%)`,
+  }
+
+  return (
+    <div className="space-y-2 text-center">
+      <div className="relative mx-auto" style={{ width: size, height: size }}>
+        <div className="h-full w-full rounded-full" style={ringStyle} />
+        <div className="absolute inset-[16%] flex flex-col items-center justify-center rounded-full bg-[var(--color-surface-card)] dark:bg-[var(--color-surface-card)]">
+          <Typography variant="caption" color="muted">{title}</Typography>
+          <Typography variant="h3" className="leading-none">{display}</Typography>
+        </div>
+      </div>
+      {detail && (
+        <Typography variant="caption" color="secondary" className="block">
+          {detail}
+        </Typography>
+      )}
+    </div>
+  )
+}
+
+function SweepListChart({
+  title,
+  subtitle,
+  items,
+  mode,
+  formatValue,
+}: {
+  title: string
+  subtitle?: string
+  items: Array<{ label: string; value: number; subtitle?: string }>
+  mode: 'share' | 'relative'
+  formatValue: (value: number) => string
+}) {
+  const normalizedItems = items.filter(item => item.value > 0)
+  const max = normalizedItems.length ? Math.max(...normalizedItems.map(item => item.value), 1) : 1
+  const total = normalizedItems.reduce((sum, item) => sum + item.value, 0)
+  const colors: Array<[string, string]> = [
+    ['#C61A26', '#E8323F'],
+    ['#FF9F1C', '#FFC66B'],
+    ['#4F734A', '#6A9B63'],
+    ['#2563EB', '#60A5FA'],
+    ['#7C3AED', '#A78BFA'],
+    ['#0F766E', '#2DD4BF'],
+  ]
+
+  return (
+    <Card variant="bordered" className="space-y-4">
+      <div>
+        <Typography variant="h4">{title}</Typography>
+        {subtitle && (
+          <Typography variant="caption" color="secondary" className="mt-1 block">
+            {subtitle}
+          </Typography>
+        )}
+      </div>
+
+      {!normalizedItems.length ? (
+        <Typography variant="body" color="muted">Sem dados no periodo.</Typography>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {normalizedItems.map((item, index) => {
+            const percent = mode === 'share'
+              ? (total > 0 ? (item.value / total) * 100 : 0)
+              : (max > 0 ? (item.value / max) * 100 : 0)
+
+            return (
+              <div key={item.label} className="rounded-[var(--radius-md)] border border-[var(--color-surface-border)] bg-[var(--color-surface-card)]/70 p-3 dark:bg-[var(--color-surface-muted)]/35">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="relative h-14 w-14 rounded-full"
+                    style={{
+                      background: `conic-gradient(${colors[index % colors.length][0]} 0%, ${colors[index % colors.length][1]} ${percent}%, rgba(128,128,128,0.2) ${percent}% 100%)`,
+                    }}
+                  >
+                    <div className="absolute inset-[18%] flex items-center justify-center rounded-full bg-[var(--color-surface-card)] text-[11px] font-semibold text-[var(--color-text-secondary)] dark:bg-[var(--color-surface-card)]">
+                      {percent.toFixed(0)}%
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Typography variant="caption" className="block truncate">{item.label}</Typography>
+                    <Typography variant="h4" className="mt-0.5 leading-none">{formatValue(item.value)}</Typography>
+                    {item.subtitle && (
+                      <Typography variant="caption" color="secondary" className="mt-1 block truncate">
+                        {item.subtitle}
+                      </Typography>
+                    )}
+                  </div>
                 </div>
-                {item.subtitle && (
-                  <Typography variant="caption" color="muted">{item.subtitle}</Typography>
-                )}
               </div>
             )
           })}
         </div>
       )}
     </Card>
+  )
+}
+
+function ImoviewLoadingCircle({ message }: { message: string }) {
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <span className="relative inline-flex h-8 w-8">
+        <span className="absolute inset-0 rounded-full border-2 border-[var(--color-surface-border)]" />
+        <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-brand-red border-r-brand-orange animate-spin" />
+      </span>
+      <Typography variant="caption" color="secondary">{message}</Typography>
+    </div>
   )
 }
 
@@ -458,15 +667,6 @@ export function LocacaoPage() {
     )
   }
 
-  const faseChartData = useMemo(() => {
-    const fases = data?.metrics.taxa_cada_fase.fases ?? []
-    return fases.map(item => ({
-      label: item.fase,
-      value: item.percentual,
-      subtitle: `${item.quantidade} atendimentos`,
-    }))
-  }, [data])
-
   const motivoChartData = useMemo(() => {
     const motivos = data?.metrics.churn_por_motivo.categorias ?? []
     return motivos.map(item => ({
@@ -485,17 +685,86 @@ export function LocacaoPage() {
     }))
   }, [data])
 
-  return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      <div>
-        <Typography variant="h2">Setor de Locacao</Typography>
-        <Typography variant="body" color="secondary" className="mt-1 max-w-4xl">
-          Pagina base com as metricas iniciais de Locacao. Nesta etapa, o foco e estruturar
-          escopo, fonte e metodologia de cada indicador.
-        </Typography>
-      </div>
+  const compactKpis = useMemo<CompactKpi[]>(() => {
+    if (!data) return []
 
-      <Card variant="bordered" className="space-y-4">
+    return [
+      {
+        id: 'ID 1',
+        label: 'Novos imoveis captados',
+        value: formatNumber(data.metrics.novos_imoveis_captados.valor),
+      },
+      {
+        id: 'ID 2V',
+        label: 'Churn em volume',
+        value: formatPercent(data.metrics.taxa_churn_rescisao.volume.taxa_percentual),
+        supporting: `${data.metrics.taxa_churn_rescisao.volume.rescindidos} rescindidos`,
+      },
+      {
+        id: 'ID 2R$',
+        label: 'Churn em valor',
+        value: formatPercent(data.metrics.taxa_churn_rescisao.valor.taxa_percentual),
+        supporting: formatCurrency(data.metrics.taxa_churn_rescisao.valor.rescindidos),
+      },
+      {
+        id: 'ID 3',
+        label: 'Permanencia media (LTV)',
+        value: `${formatNumber(data.metrics.prazo_medio_permanencia_ltv.meses)} meses`,
+      },
+      {
+        id: 'ID 6',
+        label: 'Vacancia media',
+        value: `${formatNumber(data.metrics.tempo_medio_vacancia.dias)} dias`,
+      },
+      {
+        id: 'ID 7',
+        label: 'Processo medio Trello',
+        value: `${formatNumber(data.metrics.tempo_medio_processo_trello.media_geral_dias)} dias`,
+        supporting: `${data.metrics.tempo_medio_processo_trello.processos_no_periodo} processos`,
+      },
+      {
+        id: 'ID 5',
+        label: 'Resposta 1a-4a Imoview',
+        value: imoviewLoading
+          ? '...'
+          : `${formatNumber(data.metrics.tempo_medio_resposta_quarta_interacao_imoview.tempo_medio_dias)} dias`,
+      },
+      {
+        id: 'ID 8',
+        label: 'Intervalo entre interacoes',
+        value: imoviewLoading
+          ? '...'
+          : `${formatNumber(data.metrics.tempo_medio_intervalo_interacoes_imoview.tempo_medio_dias)} dias`,
+      },
+    ]
+  }, [data, imoviewLoading])
+
+  return (
+    <div className="relative mx-auto max-w-[1400px] space-y-6 pb-10">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[340px] bg-[radial-gradient(circle_at_top_right,rgba(198,26,38,0.18),transparent_52%),radial-gradient(circle_at_top_left,rgba(255,159,28,0.16),transparent_48%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(198,26,38,0.22),transparent_55%),radial-gradient(circle_at_top_left,rgba(255,159,28,0.12),transparent_50%)]" />
+
+      <Card
+        variant="elevated"
+        className="overflow-hidden border border-[var(--color-surface-border)] bg-[linear-gradient(125deg,rgba(255,255,255,0.95),rgba(246,246,248,0.9))] dark:bg-[linear-gradient(125deg,rgba(32,33,40,0.96),rgba(24,25,31,0.92))]"
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <Typography variant="label" color="secondary">Dashboard Executivo</Typography>
+            <Typography variant="h1" className="mt-2">Locacao</Typography>
+            <Typography variant="body" color="secondary" className="mt-2 max-w-3xl">
+              Visao analitica com foco em funil, churn e produtividade operacional. Os KPIs numericos foram comprimidos em blocos compactos para ampliar o protagonismo dos graficos e da leitura comparativa.
+            </Typography>
+          </div>
+          <div className="rounded-[var(--radius-lg)] border border-[var(--color-surface-border)] bg-white/70 px-4 py-3 dark:bg-[var(--color-surface-muted)]/55">
+            <Typography variant="caption" color="muted">Periodo atual</Typography>
+            <Typography variant="h4" className="mt-1">
+              {startDate} ate {endDate}
+            </Typography>
+          </div>
+        </div>
+      </Card>
+
+      <Card variant="bordered" className="space-y-4 border-[var(--color-surface-border)] backdrop-blur-sm bg-white/80 dark:bg-[var(--color-surface-card)]/75">
         <div className="flex items-center justify-between gap-2">
           <Typography variant="h4">Filtros</Typography>
           {(loading || imoviewLoading) && (
@@ -552,7 +821,7 @@ export function LocacaoPage() {
             {!!selectedProcessTags.length && (
               <button
                 type="button"
-                className="text-xs text-brand-red hover:underline"
+                className="text-xs text-brand-red hover:underline dark:text-[#FF8E96]"
                 onClick={() => setSelectedProcessTags([])}
               >
                 Limpar selecao
@@ -597,113 +866,149 @@ export function LocacaoPage() {
 
       {data && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            <Card>
-              <Typography variant="caption" color="muted">ID 1 • Novos imoveis captados</Typography>
-              <Typography variant="h2" className="mt-1">{formatNumber(data.metrics.novos_imoveis_captados.valor)}</Typography>
-            </Card>
-
-            <Card>
-              <Typography variant="caption" color="muted">ID 2 • Churn (volume)</Typography>
-              <Typography variant="h2" className="mt-1">{formatPercent(data.metrics.taxa_churn_rescisao.volume.taxa_percentual)}</Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">
-                {data.metrics.taxa_churn_rescisao.volume.rescindidos} rescindidos / {data.metrics.taxa_churn_rescisao.volume.ativos} ativos
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Typography variant="h4">KPIs Essenciais</Typography>
+              <Typography variant="caption" color="secondary">
+                Cartoes compactos para leitura rapida
               </Typography>
-            </Card>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 2xl:grid-cols-8">
+              {compactKpis.map(item => (
+                <CompactKpiCard key={item.id} item={item} />
+              ))}
+            </div>
+          </section>
 
-            <Card>
-              <Typography variant="caption" color="muted">ID 2 • Churn (valor)</Typography>
-              <Typography variant="h2" className="mt-1">{formatPercent(data.metrics.taxa_churn_rescisao.valor.taxa_percentual)}</Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">
-                {formatCurrency(data.metrics.taxa_churn_rescisao.valor.rescindidos)} / {formatCurrency(data.metrics.taxa_churn_rescisao.valor.ativos)}
-              </Typography>
-            </Card>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <DonutBreakdownChart
+              title="Funil de atendimento por fase"
+              subtitle={`Base: ${formatNumber(data.metrics.taxa_cada_fase.total_atendimentos)} atendimentos no periodo`}
+              items={(data.metrics.taxa_cada_fase.fases ?? []).map(item => ({
+                label: item.fase,
+                value: item.quantidade,
+                auxiliary: `${item.percentual.toFixed(2)}%`,
+              }))}
+            />
 
-            <Card>
-              <Typography variant="caption" color="muted">ID 3 • Prazo medio de permanencia</Typography>
-              <Typography variant="h2" className="mt-1">{formatNumber(data.metrics.prazo_medio_permanencia_ltv.meses)}</Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">meses</Typography>
-            </Card>
-
-            <Card>
-              <Typography variant="caption" color="muted">ID 4 • Total de atendimentos</Typography>
-              <Typography variant="h2" className="mt-1">{formatNumber(data.metrics.taxa_cada_fase.total_atendimentos)}</Typography>
-            </Card>
-
-            <Card>
-              <Typography variant="caption" color="muted">ID 5 • Tempo medio de resposta (Imoview)</Typography>
-              <Typography variant="h2" className="mt-1">
-                {imoviewLoading
-                  ? '...'
-                  : formatNumber(data.metrics.tempo_medio_resposta_quarta_interacao_imoview.tempo_medio_dias)}
-              </Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">
-                {imoviewLoading
-                  ? 'Carregando dados do Imoview...'
-                  : `dias • ${data.metrics.tempo_medio_resposta_quarta_interacao_imoview.atendimentos_com_4_interacoes} atendimentos com 4+ interacoes`}
-              </Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">
-                total analisado: {imoviewLoading ? '-' : data.metrics.tempo_medio_resposta_quarta_interacao_imoview.atendimentos_analisados}
-              </Typography>
-            </Card>
-
-            <Card>
-              <Typography variant="caption" color="muted">ID 6 • Tempo medio de vacancia</Typography>
-              <Typography variant="h2" className="mt-1">{formatNumber(data.metrics.tempo_medio_vacancia.dias)}</Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">dias</Typography>
-            </Card>
-
-            <Card>
-              <Typography variant="caption" color="muted">ID 7 • Tempo medio de processo (Trello)</Typography>
-              <Typography variant="h2" className="mt-1">{formatNumber(data.metrics.tempo_medio_processo_trello.media_geral_dias)}</Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">
-                dias • {data.metrics.tempo_medio_processo_trello.processos_no_periodo} processos concluidos no periodo
-              </Typography>
-              {!!data.metrics.tempo_medio_processo_trello.tags_filtradas.length && (
+            <Card variant="bordered" className="space-y-4">
+              <div>
+                <Typography variant="h4">Churn em contexto</Typography>
                 <Typography variant="caption" color="secondary" className="mt-1 block">
-                  Filtro aplicado: {data.metrics.tempo_medio_processo_trello.tags_filtradas.join(', ')}
+                  Comparacao entre volume e impacto financeiro no periodo selecionado
                 </Typography>
-              )}
-              <Typography variant="caption" color="secondary" className="mt-1 block">
-                Cancelados: {
-                  data.metrics.tempo_medio_processo_trello.cancelados_filter === 'exclude'
-                    ? 'Nao mostrar'
-                    : data.metrics.tempo_medio_processo_trello.cancelados_filter === 'include'
-                      ? 'Mostrar'
-                      : 'Apenas cancelados'
-                }
-              </Typography>
-            </Card>
+              </div>
 
-            <Card>
-              <Typography variant="caption" color="muted">ID 8 • Tempo medio entre interacoes (Imoview)</Typography>
-              <Typography variant="h2" className="mt-1">
-                {imoviewLoading
-                  ? '...'
-                  : formatNumber(data.metrics.tempo_medio_intervalo_interacoes_imoview.tempo_medio_dias)}
-              </Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">
-                {imoviewLoading
-                  ? 'Carregando dados do Imoview...'
-                  : `dias • ${data.metrics.tempo_medio_intervalo_interacoes_imoview.intervalos_consolidados} intervalos consolidados`}
-              </Typography>
-              <Typography variant="caption" color="secondary" className="mt-1 block">
-                atendimentos com 2+ interacoes: {imoviewLoading ? '-' : data.metrics.tempo_medio_intervalo_interacoes_imoview.atendimentos_com_2_interacoes}
-              </Typography>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <SweepGauge
+                  title="Volume"
+                  value={data.metrics.taxa_churn_rescisao.volume.taxa_percentual ?? 0}
+                  display={formatPercent(data.metrics.taxa_churn_rescisao.volume.taxa_percentual)}
+                  detail={`${data.metrics.taxa_churn_rescisao.volume.rescindidos} rescindidos / ${data.metrics.taxa_churn_rescisao.volume.ativos} ativos`}
+                  colors={['#C61A26', '#E8323F']}
+                />
+
+                <SweepGauge
+                  title="Valor financeiro"
+                  value={data.metrics.taxa_churn_rescisao.valor.taxa_percentual ?? 0}
+                  display={formatPercent(data.metrics.taxa_churn_rescisao.valor.taxa_percentual)}
+                  detail={`${formatCurrency(data.metrics.taxa_churn_rescisao.valor.rescindidos)} / ${formatCurrency(data.metrics.taxa_churn_rescisao.valor.ativos)}`}
+                  colors={['#FF9F1C', '#FFC66B']}
+                />
+
+                <div className="rounded-[var(--radius-md)] bg-[var(--color-surface-muted)] p-3">
+                  <Typography variant="caption" color="secondary" className="block">
+                    Processos Trello no periodo: {data.metrics.tempo_medio_processo_trello.processos_no_periodo}
+                  </Typography>
+                  <Typography variant="caption" color="secondary" className="block">
+                    Cancelados: {
+                      data.metrics.tempo_medio_processo_trello.cancelados_filter === 'exclude'
+                        ? 'Nao mostrar'
+                        : data.metrics.tempo_medio_processo_trello.cancelados_filter === 'include'
+                          ? 'Mostrar'
+                          : 'Apenas cancelados'
+                    }
+                  </Typography>
+                </div>
+              </div>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <HorizontalBarChart title="ID 4 • Taxa de cada fase" items={faseChartData} valueKey="percent" />
-            <HorizontalBarChart title="ID 2.1 • Churn por motivo" items={motivoChartData} valueKey="number" />
+            <SweepListChart
+              title="Churn por motivo"
+              subtitle="Leitura radial da participacao de cada causa no total de rescisoes"
+              items={motivoChartData}
+              mode="share"
+              formatValue={value => `${formatNumber(value)} contratos`}
+            />
+            <SweepListChart
+              title="Tempo medio por categoria (Trello)"
+              subtitle="Leitura radial da intensidade por categoria, em dias medios"
+              items={trelloCategoriaChartData}
+              mode="relative"
+              formatValue={value => `${formatNumber(value)} dias`}
+            />
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <HorizontalBarChart title="ID 7 • Tempo medio por categoria (labels) em dias" items={trelloCategoriaChartData} valueKey="number" />
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <Card variant="bordered" className="xl:col-span-1">
+              <Typography variant="caption" color="muted">ID 5 • Imoview</Typography>
+              {imoviewLoading ? (
+                <>
+                  <ImoviewLoadingCircle message="Carregando dados do endpoint Imoview..." />
+                  <Typography variant="caption" color="secondary" className="mt-2 block">
+                    Aguardando tempo medio de resposta (1a a 4a interacao).
+                  </Typography>
+                </>
+              ) : (
+                <>
+                  <Typography variant="h3" className="mt-1">
+                    {`${formatNumber(data.metrics.tempo_medio_resposta_quarta_interacao_imoview.tempo_medio_dias)} dias`}
+                  </Typography>
+                  <Typography variant="caption" color="secondary" className="mt-1 block">
+                    Atendimentos com 4+ interacoes: {data.metrics.tempo_medio_resposta_quarta_interacao_imoview.atendimentos_com_4_interacoes}
+                  </Typography>
+                </>
+              )}
+            </Card>
+
+            <Card variant="bordered" className="xl:col-span-1">
+              <Typography variant="caption" color="muted">ID 8 • Imoview</Typography>
+              {imoviewLoading ? (
+                <>
+                  <ImoviewLoadingCircle message="Consultando frequencia entre interacoes..." />
+                  <Typography variant="caption" color="secondary" className="mt-2 block">
+                    Sincronizando intervalos consolidados do Imoview.
+                  </Typography>
+                </>
+              ) : (
+                <>
+                  <Typography variant="h3" className="mt-1">
+                    {`${formatNumber(data.metrics.tempo_medio_intervalo_interacoes_imoview.tempo_medio_dias)} dias`}
+                  </Typography>
+                  <Typography variant="caption" color="secondary" className="mt-1 block">
+                    Intervalos consolidados: {data.metrics.tempo_medio_intervalo_interacoes_imoview.intervalos_consolidados}
+                  </Typography>
+                </>
+              )}
+            </Card>
+
+            <Card variant="bordered" className="xl:col-span-1">
+              <Typography variant="caption" color="muted">Filtro aplicado em Trello</Typography>
+              <Typography variant="h4" className="mt-1">
+                {data.metrics.tempo_medio_processo_trello.tags_filtradas.length
+                  ? data.metrics.tempo_medio_processo_trello.tags_filtradas.join(', ')
+                  : 'Todas as tags'}
+              </Typography>
+              <Typography variant="caption" color="secondary" className="mt-1 block">
+                Cards avaliados: {data.metrics.tempo_medio_processo_trello.cards_total}
+              </Typography>
+            </Card>
           </div>
 
           {!!data.warnings.length && (
-            <Card className="border border-brand-orange/25 bg-brand-orange-muted/40">
+            <Card className="border border-brand-orange/25 bg-brand-orange-muted/40 dark:border-brand-orange/35 dark:bg-brand-orange/10">
               <Typography variant="label" color="secondary">Avisos de dados</Typography>
               <div className="mt-2 space-y-1">
                 {data.warnings.map(warning => (
@@ -715,7 +1020,7 @@ export function LocacaoPage() {
         </>
       )}
 
-      <Card className="bg-brand-orange-muted/40 border border-brand-orange/20">
+      <Card className="border border-brand-orange/20 bg-brand-orange-muted/40 dark:border-brand-orange/35 dark:bg-brand-orange/10">
         <Typography variant="label" color="secondary">Escopo Inicial</Typography>
         <Typography variant="body" className="mt-1">
           Total de metricas mapeadas: {locacaoMetrics.length}

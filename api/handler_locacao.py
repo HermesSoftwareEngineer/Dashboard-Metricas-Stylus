@@ -18,11 +18,20 @@ async def handler(request, response):
     try:
         start_date = request.args.get("start_date", "")
         end_date = request.args.get("end_date", "")
+        process_tags = request.args.get("process_tags", "")
+        cancelados_filter = request.args.get("cancelados_filter", "exclude")
         
-        logger.info("Metrics request: start=%s, end=%s", start_date, end_date)
+        logger.info(
+            "Metrics request: start=%s, end=%s, process_tags=%s, cancelados_filter=%s",
+            start_date,
+            end_date,
+            process_tags,
+            cancelados_filter,
+        )
         
         start, end = parse_filter_dates(start_date, end_date)
-        payload = build_locacao_metrics(start, end)
+        selected_tags = [tag.strip() for tag in process_tags.split(",") if tag.strip()]
+        payload = build_locacao_metrics(start, end, selected_tags, cancelados_filter)
         
         response.headers["Content-Type"] = "application/json"
         return {"success": True, **payload}

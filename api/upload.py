@@ -11,6 +11,7 @@ from api.lib import (
     infer_type,
     parse_filter_dates,
     build_locacao_metrics,
+    build_locacao_imoview_metrics,
 )
 
 app = FastAPI()
@@ -94,11 +95,18 @@ async def upload(file: UploadFile = File(...), type: str = Form(...)):
 
 
 @app.get("/api/locacao/metrics")
-async def locacao_metrics(start_date: str, end_date: str):
-    logger.info("Requisicao de metricas de locacao. start=%s end=%s", start_date, end_date)
+async def locacao_metrics(start_date: str, end_date: str, process_tags: str = "", cancelados_filter: str = "exclude"):
+    logger.info(
+        "Requisicao de metricas de locacao. start=%s end=%s process_tags=%s cancelados_filter=%s",
+        start_date,
+        end_date,
+        process_tags,
+        cancelados_filter,
+    )
     try:
         start, end = parse_filter_dates(start_date, end_date)
-        payload = build_locacao_metrics(start, end)
+        selected_tags = [tag.strip() for tag in process_tags.split(",") if tag.strip()]
+        payload = build_locacao_metrics(start, end, selected_tags, cancelados_filter)
         logger.info("Metricas de locacao calculadas com sucesso.")
         return {"success": True, **payload}
     except ValueError as exc:
@@ -106,3 +114,22 @@ async def locacao_metrics(start_date: str, end_date: str):
     except Exception as exc:
         logger.exception("Erro ao calcular metricas de locacao")
         raise HTTPException(status_code=500, detail="Erro interno ao processar metricas") from exc
+
+
+@app.get("/api/locacao/metrics/imoview")
+async def locacao_imoview_metrics(start_date: str, end_date: str):
+    logger.info(
+        "Requisicao de metricas Imoview da locacao. start=%s end=%s",
+        start_date,
+        end_date,
+    )
+    try:
+        start, end = parse_filter_dates(start_date, end_date)
+        payload = build_locacao_imoview_metrics(start, end)
+        logger.info("Metricas Imoview da locacao calculadas com sucesso.")
+        return {"success": True, **payload}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Erro ao calcular metricas Imoview da locacao")
+        raise HTTPException(status_code=500, detail="Erro interno ao processar metricas Imoview") from exc

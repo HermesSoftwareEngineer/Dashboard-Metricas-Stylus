@@ -1,5 +1,23 @@
 # React + TypeScript + Vite
 
+## Locacao Metrics Integrations (Backend)
+
+Para o endpoint `/api/locacao/metrics`, a autenticacao no Imoview e feita automaticamente no backend.
+
+Configure no arquivo `.env`:
+
+```env
+IMOVIEW_BASE_URL=https://api.imoview.com.br
+IMOVIEW_EMAIL=seu-email
+IMOVIEW_SENHA=sua-senha
+IMOVIEW_CHAVE=sua-chave-header
+```
+
+Notas:
+
+- O backend chama `GET /Usuario/App_ValidarAcesso` e guarda o `codigoacesso` em cache na memoria do processo.
+- Se as variaveis nao estiverem configuradas ou a autenticacao falhar, o endpoint retorna as metricas atuais com aviso em `warnings`.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

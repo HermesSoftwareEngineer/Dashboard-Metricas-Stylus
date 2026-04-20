@@ -1,5 +1,8 @@
 import logging
+from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.lib import (
     ALLOWED_TYPES,
@@ -17,6 +20,13 @@ from api.lib import (
 app = FastAPI()
 logger = logging.getLogger("upload_api")
 logging.basicConfig(level=logging.INFO)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DIST_DIR = BASE_DIR / "dist"
+DIST_ASSETS_DIR = DIST_DIR / "assets"
+
+if DIST_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(DIST_ASSETS_DIR)), name="assets")
 
 
 @app.post("/")
@@ -133,3 +143,27 @@ async def locacao_imoview_metrics(start_date: str, end_date: str):
     except Exception as exc:
         logger.exception("Erro ao calcular metricas Imoview da locacao")
         raise HTTPException(status_code=500, detail="Erro interno ao processar metricas Imoview") from exc
+
+
+@app.get("/", include_in_schema=False)
+async def serve_index():
+    index_path = DIST_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend nao encontrado. Execute o build do Vite.")
+    return FileResponse(index_path)
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str):
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Endpoint nao encontrado")
+
+    candidate = DIST_DIR / full_path
+    if candidate.exists() and candidate.is_file():
+        return FileResponse(candidate)
+
+    index_path = DIST_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend nao encontrado. Execute o build do Vite.")
+
+    return FileResponse(index_path)

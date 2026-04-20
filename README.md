@@ -18,6 +18,45 @@ Notas:
 - O backend chama `GET /Usuario/App_ValidarAcesso` e guarda o `codigoacesso` em cache na memoria do processo.
 - Se as variaveis nao estiverem configuradas ou a autenticacao falhar, o endpoint retorna as metricas atuais com aviso em `warnings`.
 
+## Deploy no Google Cloud Run com Docker
+
+Este projeto pode ser publicado como um unico servico Cloud Run:
+
+- Frontend React (build Vite) servido pelo FastAPI.
+- Backend FastAPI nas rotas `/api/*`.
+
+### 1) Build local da imagem (opcional)
+
+```bash
+docker build -t dashboard-metricas-stylus .
+docker run --rm -p 8080:8080 dashboard-metricas-stylus
+```
+
+### 2) Build da imagem no Google Cloud Build
+
+```bash
+gcloud config set project SEU_PROJECT_ID
+gcloud builds submit --tag gcr.io/SEU_PROJECT_ID/dashboard-metricas-stylus
+```
+
+### 3) Deploy no Cloud Run
+
+```bash
+gcloud run deploy dashboard-metricas-stylus \
+  --image gcr.io/SEU_PROJECT_ID/dashboard-metricas-stylus \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --set-env-vars IMOVIEW_BASE_URL=https://api.imoview.com.br,IMOVIEW_EMAIL=seu-email,IMOVIEW_SENHA=sua-senha,IMOVIEW_CHAVE=sua-chave-header
+```
+
+Observacoes:
+
+- O Cloud Run injeta a variavel `PORT` automaticamente e o container ja respeita isso.
+- O frontend usa mesma origem por padrao (sem necessidade de `VITE_API_BASE_URL` em producao).
+- Se quiser restringir acesso, remova `--allow-unauthenticated`.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

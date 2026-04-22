@@ -790,6 +790,10 @@ def build_locacao_metrics(
             "dataalugado",
             "datalocacao",
             "data_locacao",
+            "datahoraultimasituacao",
+            "data_hora_ultima_situacao",
+            "dataultimasituacao",
+            "data_ultima_situacao",
             "dataultimamudancastatus",
             "data_ultima_mudanca_status",
             "ultimamudancastatus",
@@ -807,7 +811,20 @@ def build_locacao_metrics(
         )
 
     atend_fase_col = find_column(atend_cols, ["fase", "etapa", "statusfase"])
-    atend_data_col = find_column(atend_cols, ["data", "dataatendimento", "data_atendimento", "datacadastro", "data_cadastro"])
+    atend_data_col = find_column(
+        atend_cols,
+        [
+            "data",
+            "dataatendimento",
+            "data_atendimento",
+            "datacadastro",
+            "data_cadastro",
+            "datahorainclusao",
+            "data_hora_inclusao",
+            "datainclusao",
+            "data_inclusao",
+        ],
+    )
 
     # 1) Novos imoveis captados
     novos_imoveis_captados = 0
@@ -934,13 +951,18 @@ def build_locacao_metrics(
     if imovel_data_vago_desde_col:
         vago_desde = to_datetime_series(imoveis[imovel_data_vago_desde_col]).dt.normalize()
         fim_vacancia = pd.Series([pd.NaT] * len(imoveis), index=imoveis.index, dtype="datetime64[ns]")
-        if imovel_data_alugado_col:
-            fim_vacancia = to_datetime_series(imoveis[imovel_data_alugado_col]).dt.normalize()
 
         if imovel_status_col:
             hoje = pd.Timestamp.now().normalize()
             status_series = imoveis[imovel_status_col]
+            em_alugado = contains_alugado(status_series)
             em_vago = contains_vago(status_series)
+
+            if imovel_data_alugado_col:
+                data_ultima_situacao = to_datetime_series(imoveis[imovel_data_alugado_col]).dt.normalize()
+                # Considera DataHoraUltimaSituacao apenas quando o status atual indica Alugado.
+                fim_vacancia = data_ultima_situacao.where(em_alugado, pd.NaT)
+
             fim_vacancia = fim_vacancia.where(~(em_vago & fim_vacancia.isna()), hoje)
         else:
             warnings.append("Coluna de status dos imoveis nao encontrada para complementar fim da vacancia.")
